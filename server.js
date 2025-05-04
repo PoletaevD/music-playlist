@@ -1,138 +1,120 @@
 const express = require('express');
 const cors = require('cors');
-const app = express();
-const bodyParser = require('body-parser');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
+require('dotenv').config();
 
+// Создание приложения Express
+const app = express();
+
+// Настройка CORS
 app.use(cors());
+
+// Парсинг JSON тела запроса
 app.use(express.json());
 
-// Подключение к базе данных SQLite
-const db = new sqlite3.Database('db.sqlite');
-
-// Создание таблиц, если они не существуют
-db.serialize(() => {
-  // Создание таблицы для плейлистов
-  db.run(`
-    CREATE TABLE IF NOT EXISTS playlists (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT
-    )
-  `);
-
-  // Создание таблицы для треков
-  db.run(`
-    CREATE TABLE IF NOT EXISTS tracks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      playlist_id INTEGER,
-      original_url TEXT,
-      votes INTEGER DEFAULT 0,
-      dislikes INTEGER DEFAULT 0,
-      FOREIGN KEY (playlist_id) REFERENCES playlists(id)
-    )
-  `);
+// Настройка подключения к базе данных PostgreSQL
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
-// Подключение middleware для обработки JSON данных
-app.use(bodyParser.json());
-
-// Получить все плейлисты
-app.get('/api/playlists', (req, res) => {
-  db.all('SELECT * FROM playlists', (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-    } else {
-      res.json(rows);
-    }
-  });
+// Получение всех плейлистов
+app.get('/api/playlists', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM playlists');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Ошибка при получении плейлистов:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
 });
 
-// Получить конкретный плейлист по ID
-app.get('/api/playlists/:id', (req, res) => {
+// Получение конкретного плейлиста по ID
+app.get('/api/playlists/:id', async (req, res) => {
   const { id } = req.params;
-  db.get('SELECT * FROM playlists WHERE id = ?', [id], (err, row) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-    } else {
-      if (row) {
-        db.all('SELECT * FROM tracks WHERE playlist_id = ?', [id], (err, tracks) => {
-          if (err) {
-            res.status(500).json({ error: err.message });
-          } else {
-            row.tracks = tracks;
-            res.json(row);
-          }
-        });
-      } else {
-        res.status(404).json({ message: 'Плейлист не найден' });
-      }
+  try {
+    const playlistResult = await pool.query('SELECT * FROM playlists WHERE id = $1', [id]);
+    const tracksResult = await pool.query('SELECT * FROM tracks WHERE playlist_id = $1', [id]);
+
+    if (playlistResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Плейлист не найден' });
     }
-  });
+
+    const playlist = playlistResult.rows[0];
+    const tracks = tracksResult.rows;
+
+    res.json({ ...playlist, tracks });
+  } catch (err) {
+    console.error('Ошибка при получении плейлиста:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
 });
 
-// Создать новый плейлист
-app.post('/api/playlists', (req, res) => {
+// Создание нового плейлиста
+app.post('/api/playlists', async (req, res) => {
   const { name } = req.body;
-  db.run('INSERT INTO playlists (name) VALUES (?)', [name], function (err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-    } else {
-      res.status(201).json({ id: this.lastID, name });
-    }
-  });
+  try {
+    const result = await pool.query('INSERT INTO playlists (name) VALUES ($1) RETURNING *', [name]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Ошибка при создании плейлиста:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
 });
 
-// Добавить трек в плейлист
-app.post('/api/playlists/:id/tracks', (req, res) => {
+// Добавление трека в плейлист
+app.post('/api/playlists/:id/tracks', async (req, res) => {
   const { id } = req.params;
   const { url } = req.body;
-  db.run('INSERT INTO tracks (playlist_id, original_url) VALUES (?, ?)', [id, url], function (err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-    } else {
-      res.status(201).json({ id: this.lastID, playlist_id: id, original_url: url });
-    }
-  });
+  try {
+    const result = await pool.query(
+      'INSERT INTO tracks (playlist_id, original_url) VALUES ($1, $2) RETURNING *',
+      [id, url]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Ошибка при добавлении трека:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
 });
 
-// Удалить трек из плейлиста
-app.delete('/api/playlists/:id/tracks/:trackId', (req, res) => {
-  const { id, trackId } = req.params;
-  db.run('DELETE FROM tracks WHERE id = ? AND playlist_id = ?', [trackId, id], function (err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-    } else {
-      res.status(200).json({ message: 'Трек удален' });
-    }
-  });
+// Удаление трека из плейлиста
+app.delete('/api/playlists/:playlistId/tracks/:trackId', async (req, res) => {
+  const { playlistId, trackId } = req.params;
+  try {
+    await pool.query('DELETE FROM tracks WHERE id = $1 AND playlist_id = $2', [trackId, playlistId]);
+    res.status(204).send();
+  } catch (err) {
+    console.error('Ошибка при удалении трека:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
 });
 
-// Проголосовать за трек (лайк)
-app.post('/api/playlists/:id/tracks/:trackId/vote', (req, res) => {
-  const { id, trackId } = req.params;
-  db.run('UPDATE tracks SET votes = votes + 1 WHERE id = ? AND playlist_id = ?', [trackId, id], function (err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-    } else {
-      res.status(200).json({ message: 'Трек оценен' });
-    }
-  });
-});
+// Голосование за трек (лайк/дизлайк)
+app.post('/api/playlists/:playlistId/tracks/:trackId/:type', async (req, res) => {
+  const { playlistId, trackId, type } = req.params;
+  if (type !== 'vote' && type !== 'dislike') {
+    return res.status(400).json({ error: 'Неверный тип голосования' });
+  }
 
-// Проголосовать за трек (дизлайк)
-app.post('/api/playlists/:id/tracks/:trackId/dislike', (req, res) => {
-  const { id, trackId } = req.params;
-  db.run('UPDATE tracks SET dislikes = dislikes + 1 WHERE id = ? AND playlist_id = ?', [trackId, id], function (err) {
-    if (err) {
-      res.status(500).json({ error: err.message });
-    } else {
-      res.status(200).json({ message: 'Трек не понравился' });
-    }
-  });
+  const column = type === 'vote' ? 'votes' : 'dislikes';
+
+  try {
+    const result = await pool.query(
+      `UPDATE tracks SET ${column} = ${column} + 1 WHERE id = $1 AND playlist_id = $2 RETURNING *`,
+      [trackId, playlistId]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Ошибка при голосовании:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
 });
 
 // Запуск сервера
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Сервер запущен на порту ${PORT}`);
+const port = process.env.PORT || 5000;
+app.listen(port, () => {
+  console.log(`Сервер работает на порту ${port}`);
 });

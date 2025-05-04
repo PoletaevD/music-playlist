@@ -3,14 +3,13 @@ import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
 import './Playlist.css';
 
-function TrackIframe({ url, refreshKey }) {
+function TrackIframe({ url }) {
   if (url.includes('spotify.com')) {
     const match = url.match(/track\/([A-Za-z0-9]+)/);
-    if (!match) return null;
+    if (!match) return null; // Убираем "Неизвестная ссылка"
     const trackId = match[1];
     return (
       <iframe
-        key={refreshKey} // 🔄 ключ для перерисовки
         src={`https://open.spotify.com/embed/track/${trackId}`}
         width="100%"
         height="90"
@@ -23,29 +22,29 @@ function TrackIframe({ url, refreshKey }) {
 
   if (url.includes('yandex.ru')) {
     const match = url.match(/album\/(\d+)\/track\/(\d+)/);
-    if (!match) return null;
+    if (!match) return null; // Убираем "Неизвестная ссылка"
     const [_, albumId, trackId] = match;
     return (
       <iframe
-        key={refreshKey} // 🔄 ключ для перерисовки
         frameBorder="0"
         allow="clipboard-write"
         width="100%"
         height="90"
         src={`https://music.yandex.ru/iframe/album/${albumId}/track/${trackId}`}
         style={{ border: 'none' }}
-      ></iframe>
+      >
+        Слушайте <a href={url}>трек</a> на Яндекс Музыке
+      </iframe>
     );
   }
 
-  return null;
+  return null; // Убираем "Неизвестная ссылка"
 }
 
 export default function Playlist() {
   const { id } = useParams();
   const [playlist, setPlaylist] = useState(null);
   const [trackUrl, setTrackUrl] = useState('');
-  const [refreshKey, setRefreshKey] = useState(null); // ключ для перерисовки iframe
 
   const fetchPlaylist = async () => {
     const res = await axios.get(`/api/playlists/${id}`);
@@ -73,10 +72,6 @@ export default function Playlist() {
     fetchPlaylist();
   };
 
-  const handleTrackClick = (trackId) => {
-    setRefreshKey(trackId + '-' + Date.now()); // 🧠 перерисовка iframe
-  };
-
   if (!playlist) return <p>Загрузка...</p>;
 
   return (
@@ -97,15 +92,13 @@ export default function Playlist() {
       <ul className="track-list">
         {playlist.tracks.map((t) => (
           <li key={t.id} className="track-item">
-            <div className="track-player" onClick={() => handleTrackClick(t.id)}>
-              <TrackIframe url={t.original_url} refreshKey={refreshKey === null ? t.id : refreshKey} />
+            <div className="track-player">
+              <TrackIframe url={t.original_url} />
             </div>
-            <div className="track-controls">
-              <div className="control-buttons">
-                <button className="control-button" onClick={() => vote(t.id, 'vote')}>👍</button>
-                <button className="control-button" onClick={() => vote(t.id, 'dislike')}>👎</button>
-                <button className="control-button" onClick={() => deleteTrack(t.id)}>Удалить</button>
-              </div>
+            <div>
+              <button className="control-button" onClick={() => vote(t.id, 'vote')}>👍</button>
+              <button className="control-button" onClick={() => vote(t.id, 'dislike')}>👎</button>
+              <button className="control-button" onClick={() => deleteTrack(t.id)}>Удалить</button>
               <div className="vote-counts">
                 {t.votes} / {t.dislikes}
               </div>

@@ -1,11 +1,11 @@
 const express = require('express');
+const cors = require('cors');
 const app = express();
 const bodyParser = require('body-parser');
 const sqlite3 = require('sqlite3').verbose();
 
-const cors = require('cors');
 app.use(cors());
-
+app.use(express.json());
 
 // Подключение к базе данных SQLite
 const db = new sqlite3.Database('db.sqlite');
@@ -132,6 +132,7 @@ app.post('/api/playlists/:id/tracks/:trackId/dislike', (req, res) => {
 });
 
 // Запуск сервера
-app.listen(4000, () => {
-  console.log('API на порту 4000');
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`Сервер запущен на порту ${PORT}`);
 });

@@ -6,7 +6,7 @@ import './App.css';
 import axios from 'axios';
 
 // все axios‑запросы по относительному пути "/api/..." будут уходить на порт 4000
-axios.defaults.baseURL = 'http://localhost:4000';
+axios.defaults.baseURL = process.env.REACT_APP_API_URL;
 
 
 const rootElement = document.getElementById('root');

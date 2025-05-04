@@ -1,102 +1,133 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const cors = require('cors');
 const app = express();
-const PORT = 4000;
+const bodyParser = require('body-parser');
+const sqlite3 = require('sqlite3').verbose();
 
-app.use(cors());
-app.use(express.json());
+// Подключение к базе данных SQLite
+const db = new sqlite3.Database('db.sqlite');
 
-const DATA_FILE = path.join(__dirname, 'data.json');
+// Создание таблиц, если они не существуют
+db.serialize(() => {
+  // Создание таблицы для плейлистов
+  db.run(`
+    CREATE TABLE IF NOT EXISTS playlists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT
+    )
+  `);
 
-let playlists = [];
+  // Создание таблицы для треков
+  db.run(`
+    CREATE TABLE IF NOT EXISTS tracks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      playlist_id INTEGER,
+      original_url TEXT,
+      votes INTEGER DEFAULT 0,
+      dislikes INTEGER DEFAULT 0,
+      FOREIGN KEY (playlist_id) REFERENCES playlists(id)
+    )
+  `);
+});
 
-// Загрузка данных из файла при старте
-function loadData() {
-  if (fs.existsSync(DATA_FILE)) {
-    const raw = fs.readFileSync(DATA_FILE);
-    playlists = JSON.parse(raw);
-  }
-}
-
-// Сохранение данных в файл
-function saveData() {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(playlists, null, 2));
-}
-
-loadData();
+// Подключение middleware для обработки JSON данных
+app.use(bodyParser.json());
 
 // Получить все плейлисты
 app.get('/api/playlists', (req, res) => {
-  res.json(playlists);
+  db.all('SELECT * FROM playlists', (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.json(rows);
+    }
+  });
+});
+
+// Получить конкретный плейлист по ID
+app.get('/api/playlists/:id', (req, res) => {
+  const { id } = req.params;
+  db.get('SELECT * FROM playlists WHERE id = ?', [id], (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      if (row) {
+        db.all('SELECT * FROM tracks WHERE playlist_id = ?', [id], (err, tracks) => {
+          if (err) {
+            res.status(500).json({ error: err.message });
+          } else {
+            row.tracks = tracks;
+            res.json(row);
+          }
+        });
+      } else {
+        res.status(404).json({ message: 'Плейлист не найден' });
+      }
+    }
+  });
 });
 
 // Создать новый плейлист
 app.post('/api/playlists', (req, res) => {
-  const newPlaylist = {
-    id: Date.now().toString(),
-    name: req.body.name || 'Без названия',
-    tracks: [],
-  };
-  playlists.push(newPlaylist);
-  saveData();
-  res.json(newPlaylist);
-});
-
-// Получить конкретный плейлист
-app.get('/api/playlists/:id', (req, res) => {
-  const playlist = playlists.find(p => p.id === req.params.id);
-  if (!playlist) return res.status(404).send('Not found');
-  res.json(playlist);
+  const { name } = req.body;
+  db.run('INSERT INTO playlists (name) VALUES (?)', [name], function (err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.status(201).json({ id: this.lastID, name });
+    }
+  });
 });
 
 // Добавить трек в плейлист
 app.post('/api/playlists/:id/tracks', (req, res) => {
-  const playlist = playlists.find(p => p.id === req.params.id);
-  if (!playlist) return res.status(404).send('Not found');
-  const newTrack = {
-    id: Date.now().toString(),
-    original_url: req.body.url,
-    votes: 0,
-    dislikes: 0,
-  };
-  playlist.tracks.push(newTrack);
-  saveData();
-  res.json(newTrack);
+  const { id } = req.params;
+  const { url } = req.body;
+  db.run('INSERT INTO tracks (playlist_id, original_url) VALUES (?, ?)', [id, url], function (err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.status(201).json({ id: this.lastID, playlist_id: id, original_url: url });
+    }
+  });
 });
 
 // Удалить трек из плейлиста
 app.delete('/api/playlists/:id/tracks/:trackId', (req, res) => {
-  const playlist = playlists.find(p => p.id === req.params.id);
-  if (!playlist) return res.status(404).send('Not found');
-  const trackIndex = playlist.tracks.findIndex(t => t.id === req.params.trackId);
-  if (trackIndex === -1) return res.status(404).send('Track not found');
-  playlist.tracks.splice(trackIndex, 1);
-  saveData();
-  res.sendStatus(200);
+  const { id, trackId } = req.params;
+  db.run('DELETE FROM tracks WHERE id = ? AND playlist_id = ?', [trackId, id], function (err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.status(200).json({ message: 'Трек удален' });
+    }
+  });
 });
 
-// Лайк треку
+// Проголосовать за трек (лайк)
 app.post('/api/playlists/:id/tracks/:trackId/vote', (req, res) => {
-  const playlist = playlists.find(p => p.id === req.params.id);
-  const track = playlist?.tracks.find(t => t.id === req.params.trackId);
-  if (!track) return res.status(404).send('Not found');
-  track.votes += 1;
-  saveData();
-  res.sendStatus(200);
+  const { id, trackId } = req.params;
+  db.run('UPDATE tracks SET votes = votes + 1 WHERE id = ? AND playlist_id = ?', [trackId, id], function (err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.status(200).json({ message: 'Трек оценен' });
+    }
+  });
 });
 
-// Дизлайк треку
+// Проголосовать за трек (дизлайк)
 app.post('/api/playlists/:id/tracks/:trackId/dislike', (req, res) => {
-  const playlist = playlists.find(p => p.id === req.params.id);
-  const track = playlist?.tracks.find(t => t.id === req.params.trackId);
-  if (!track) return res.status(404).send('Not found');
-  track.dislikes += 1;
-  saveData();
-  res.sendStatus(200);
+  const { id, trackId } = req.params;
+  db.run('UPDATE tracks SET dislikes = dislikes + 1 WHERE id = ? AND playlist_id = ?', [trackId, id], function (err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.status(200).json({ message: 'Трек не понравился' });
+    }
+  });
 });
 
-app.listen(PORT, () => {
-  console.log(`API на порту ${PORT}`);
+// Запуск сервера
+app.listen(4000, () => {
+  console.log('API на порту 4000');
 });

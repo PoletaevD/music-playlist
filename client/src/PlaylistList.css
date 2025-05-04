@@ -1,0 +1,46 @@
+.playlist-list-container {
+    padding: 20px;
+    background-color: #121212;
+    color: white;
+    min-height: 100vh;
+  }
+  
+  .create-button {
+    margin: 10px 0;
+    padding: 10px 16px;
+    background-color: #1db954;
+    color: black;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .create-input {
+    margin: 10px 0;
+    padding: 10px 16px;
+    background-color: #000000;
+    color: rgb(255, 255, 255);
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  
+  .create-button:hover {
+    background-color: #1ed760;
+  }
+  
+  a {
+    color: #1db954;
+    text-decoration: none;
+    font-size: 18px;
+  }
+  
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+  
+  li {
+    margin-bottom: 10px;
+  }
+  

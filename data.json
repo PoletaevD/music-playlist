@@ -1,20 +1,3 @@
 [
-  {
-    "id": "1746368170836",
-    "name": "Test",
-    "tracks": [
-      {
-        "id": "1746368178969",
-        "original_url": "https://open.spotify.com/track/3AJXsnF7zi4dRs9bimdhgf?si=d001152231ef496c",
-        "votes": 6,
-        "dislikes": 5
-      },
-      {
-        "id": "1746368186233",
-        "original_url": "https://music.yandex.ru/album/35763034/track/136989842?utm_source=web&utm_medium=copy_link",
-        "votes": 8,
-        "dislikes": 4
-      }
-    ]
-  }
+
 ]

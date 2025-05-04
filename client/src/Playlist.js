@@ -71,15 +71,17 @@ export default function Playlist() {
     await axios.post(`/api/playlists/${id}/tracks/${trackId}/${type}`);
     // Не перезагружаем всю страницу, а только обновляем лайки/дизлайки
     setPlaylist((prevPlaylist) => {
-      const updatedTracks = prevPlaylist.tracks.map((track) =>
-        track.id === trackId
-          ? {
-              ...track,
-              votes: type === 'vote' ? track.votes + 1 : track.votes,
-              dislikes: type === 'dislike' ? track.dislikes + 1 : track.dislikes,
-            }
-          : track
-      );
+      const updatedTracks = prevPlaylist.tracks
+        .map((track) =>
+          track.id === trackId
+            ? {
+                ...track,
+                votes: type === 'vote' ? track.votes + 1 : track.votes,
+                dislikes: type === 'dislike' ? track.dislikes + 1 : track.dislikes,
+              }
+            : track
+        )
+        .sort((a, b) => a.id - b.id); // Сортировка для стабильного порядка
       return { ...prevPlaylist, tracks: updatedTracks };
     });
   };
@@ -102,21 +104,23 @@ export default function Playlist() {
       </div>
 
       <ul className="track-list">
-        {playlist.tracks.map((t) => (
-          <li key={t.id} className="track-item">
-            <div className="track-player">
-              <TrackIframe url={t.original_url} />
-            </div>
-            <div>
-              <button className="control-button" onClick={() => vote(t.id, 'vote')}>👍</button>
-              <button className="control-button" onClick={() => vote(t.id, 'dislike')}>👎</button>
-              <button className="control-button" onClick={() => deleteTrack(t.id)}>Удалить</button>
-              <div className="vote-counts">
-                {t.votes} / {t.dislikes}
+        {playlist.tracks
+          .sort((a, b) => a.id - b.id) // Сортировка по id для стабильного порядка
+          .map((t) => (
+            <li key={t.id} className="track-item">
+              <div className="track-player">
+                <TrackIframe url={t.original_url} />
               </div>
-            </div>
-          </li>
-        ))}
+              <div>
+                <button className="control-button" onClick={() => vote(t.id, 'vote')}>👍</button>
+                <button className="control-button" onClick={() => vote(t.id, 'dislike')}>👎</button>
+                <button className="control-button" onClick={() => deleteTrack(t.id)}>Удалить</button>
+                <div className="vote-counts">
+                  {t.votes} / {t.dislikes}
+                </div>
+              </div>
+            </li>
+          ))}
       </ul>
     </div>
   );

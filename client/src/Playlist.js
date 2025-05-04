@@ -69,7 +69,19 @@ export default function Playlist() {
 
   const vote = async (trackId, type) => {
     await axios.post(`/api/playlists/${id}/tracks/${trackId}/${type}`);
-    fetchPlaylist();
+    // Не перезагружаем всю страницу, а только обновляем лайки/дизлайки
+    setPlaylist((prevPlaylist) => {
+      const updatedTracks = prevPlaylist.tracks.map((track) =>
+        track.id === trackId
+          ? {
+              ...track,
+              votes: type === 'vote' ? track.votes + 1 : track.votes,
+              dislikes: type === 'dislike' ? track.dislikes + 1 : track.dislikes,
+            }
+          : track
+      );
+      return { ...prevPlaylist, tracks: updatedTracks };
+    });
   };
 
   if (!playlist) return <p>Загрузка...</p>;

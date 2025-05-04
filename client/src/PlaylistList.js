@@ -7,7 +7,7 @@ function PlaylistList() {
   const [playlists, setPlaylists] = useState([]);
 
   const fetchPlaylists = async () => {
-    const response = await axios.get('http://localhost:4000/api/playlists');
+    const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/playlists`)
     setPlaylists(response.data);
   };
 
@@ -16,7 +16,7 @@ function PlaylistList() {
   }, []);
 
   const createPlaylist = async () => {
-    const response = await axios.post('http://localhost:4000/api/playlists', {
+    const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/playlists`, {
       name: name,
     });
     fetchPlaylists();

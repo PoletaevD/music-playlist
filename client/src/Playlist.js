@@ -96,7 +96,7 @@ export default function Playlist() {
               <TrackIframe url={t.original_url} />
             </div>
             <div>
-              <button className="control-button" onClick={() => vote(t.id, 'vote')}>👍</button>
+              <button  className="control-button" onClick={() => vote(t.id, 'vote')}>👍</button>
               <button className="control-button" onClick={() => vote(t.id, 'dislike')}>👎</button>
               <button className="control-button" onClick={() => deleteTrack(t.id)}>Удалить</button>
               <div className="vote-counts">
